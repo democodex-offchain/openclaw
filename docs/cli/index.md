@@ -16,6 +16,7 @@ This page describes the current CLI behavior. If commands change, update this do
 - [`onboard`](/cli/onboard)
 - [`configure`](/cli/configure)
 - [`config`](/cli/config)
+- [`codex-run`](/cli/codex-run)
 - [`doctor`](/cli/doctor)
 - [`dashboard`](/cli/dashboard)
 - [`reset`](/cli/reset)
@@ -94,6 +95,7 @@ openclaw [--dev] [--profile <name>] <command>
     get
     set
     unset
+  codex-run
   doctor
   security
     audit

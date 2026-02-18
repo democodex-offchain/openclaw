@@ -1188,6 +1188,7 @@
                   "cli/browser",
                   "cli/channels",
                   "cli/configure",
+                  "cli/codex-run",
                   "cli/cron",
                   "cli/dashboard",
                   "cli/directory",

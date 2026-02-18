@@ -79,6 +79,15 @@ const coreEntries: CoreCliEntry[] = [
     },
   },
   {
+    commands: [
+      { name: "codex-run", description: "Run Codex CLI as an interactive coding agent in a local repo" },
+    ],
+    register: async ({ program }) => {
+      const mod = await import("./register.codex-run.js");
+      mod.registerCodexRunCommand(program);
+    },
+  },
+  {
     commands: [{ name: "memory", description: "Memory commands" }],
     register: async ({ program }) => {
       const mod = await import("../memory-cli.js");
