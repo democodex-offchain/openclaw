@@ -71,6 +71,8 @@ export class GatewayBrowserClient {
   private connectSent = false;
   private connectTimer: number | null = null;
   private backoffMs = 800;
+  private deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
+  private readonly role = "operator";
 
   constructor(private opts: GatewayBrowserClientOptions) {}
 
@@ -100,6 +102,17 @@ export class GatewayBrowserClient {
     this.ws.addEventListener("close", (ev) => {
       const reason = String(ev.reason ?? "");
       this.ws = null;
+      if (
+        ev.code === 1008 &&
+        reason.toLowerCase().includes("device token mismatch") &&
+        this.deviceIdentity
+      ) {
+        try {
+          clearDeviceAuthToken({ deviceId: this.deviceIdentity.deviceId, role: this.role });
+        } catch {
+          // best-effort
+        }
+      }
       this.flushPending(new Error(`gateway closed (${ev.code}): ${reason}`));
       this.opts.onClose?.({ code: ev.code, reason });
       this.scheduleReconnect();
@@ -141,19 +154,21 @@ export class GatewayBrowserClient {
     const isSecureContext = typeof crypto !== "undefined" && !!crypto.subtle;
 
     const scopes = ["operator.admin", "operator.approvals", "operator.pairing"];
-    const role = "operator";
     let deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
     let canFallbackToShared = false;
     let authToken = this.opts.token;
 
     if (isSecureContext) {
       deviceIdentity = await loadOrCreateDeviceIdentity();
+      this.deviceIdentity = deviceIdentity;
       const storedToken = loadDeviceAuthToken({
         deviceId: deviceIdentity.deviceId,
-        role,
+        role: this.role,
       })?.token;
       authToken = storedToken ?? this.opts.token;
       canFallbackToShared = Boolean(storedToken && this.opts.token);
+    } else {
+      this.deviceIdentity = null;
     }
     const auth =
       authToken || this.opts.password
@@ -180,7 +195,7 @@ export class GatewayBrowserClient {
         deviceId: deviceIdentity.deviceId,
         clientId: this.opts.clientName ?? GATEWAY_CLIENT_NAMES.CONTROL_UI,
         clientMode: this.opts.mode ?? GATEWAY_CLIENT_MODES.WEBCHAT,
-        role,
+        role: this.role,
         scopes,
         signedAtMs,
         token: authToken ?? null,
@@ -205,7 +220,7 @@ export class GatewayBrowserClient {
         mode: this.opts.mode ?? GATEWAY_CLIENT_MODES.WEBCHAT,
         instanceId: this.opts.instanceId,
       },
-      role,
+      role: this.role,
       scopes,
       device,
       caps: [],
@@ -219,7 +234,7 @@ export class GatewayBrowserClient {
         if (hello?.auth?.deviceToken && deviceIdentity) {
           storeDeviceAuthToken({
             deviceId: deviceIdentity.deviceId,
-            role: hello.auth.role ?? role,
+            role: hello.auth.role ?? this.role,
             token: hello.auth.deviceToken,
             scopes: hello.auth.scopes ?? [],
           });
@@ -229,7 +244,7 @@ export class GatewayBrowserClient {
       })
       .catch(() => {
         if (canFallbackToShared && deviceIdentity) {
-          clearDeviceAuthToken({ deviceId: deviceIdentity.deviceId, role });
+          clearDeviceAuthToken({ deviceId: deviceIdentity.deviceId, role: this.role });
         }
         this.ws?.close(CONNECT_FAILED_CLOSE_CODE, "connect failed");
       });
